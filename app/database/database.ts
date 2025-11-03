@@ -1,3 +1,6 @@
+// ============================================
+// app/database/database.ts
+// ============================================
 import * as SQLite from 'expo-sqlite';
 
 // Abrir/crear base de datos

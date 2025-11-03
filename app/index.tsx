@@ -1,6 +1,21 @@
-import React, { useState } from 'react';
-import { Alert } from 'react-native';
+// ============================================
+// app/index.tsx
+// ============================================
+import React, { useState, useEffect } from 'react';
+import { Alert, View, Text } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+
+// Importar servicios de SQLite
+import { initDatabase } from './database/database';
+import { 
+  registerUser as dbRegisterUser, 
+  loginUser as dbLoginUser,
+  resetPassword as dbResetPassword,
+  updateUser as dbUpdateUser
+} from './database/userService';
+import { getAllPharmacies } from './database/pharmacyService';
+import { getUserPrescriptions } from './database/prescriptionService';
+
 import { User, Pharmacy, Prescription } from './tipos/usuario';
 
 // Importar componentes
@@ -13,6 +28,7 @@ import { PantallaDetalleFarmacia } from './componentes/PantallaDetalleFarmacia';
 import { PantallaConfirmacion } from './componentes/PantallaConfirmacion';
 import { PantallaHistorial } from './componentes/PantallaHistorial';
 import { PantallaPerfil } from './componentes/PantallaPerfil';
+import { PantallaEditarPerfil } from './componentes/PantallaEditarPerfil';
 import { PantallaRecuperarClave } from './componentes/PantallaRecuperarClave';
 import { PantallaCerrarSesion } from './componentes/PantallaCerrarSesion';
 import { PantallaAdminDashboard } from './componentes/PantallaAdminDashboard';
@@ -21,25 +37,54 @@ import { PantallaAdminFormularioFarmacia } from './componentes/PantallaAdminForm
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState('onboarding');
-  const [userType, setUserType] = useState('patient');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Base de datos simulada
-  const [users, setUsers] = useState<User[]>([
-    { email: 'admin@medify.com', password: 'admin123', name: 'Administrador' }
-  ]);
+  // Estados para datos
+  const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
 
-  // Datos de ejemplo
-  const pharmacies: Pharmacy[] = [
-    { id: 1, name: 'Farmacia Central', address: 'Av. Corrientes 1234', distance: '0.5 km', accepts: true },
-    { id: 2, name: 'Farmacias del Dr.', address: 'Calle Florida 567', distance: '1.2 km', accepts: true },
-  ];
+  // Inicializar base de datos al montar la app
+  useEffect(() => {
+    const init = async () => {
+      try {
+        initDatabase();
+        console.log('✅ Base de datos lista');
+      } catch (error) {
+        console.error('❌ Error al inicializar BD:', error);
+        Alert.alert('Error', 'No se pudo inicializar la base de datos');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const prescriptions: Prescription[] = [
-    { id: 1, medicine: 'Ibuprofeno 600mg', date: '2025-10-20', status: 'Completado' },
-    { id: 2, medicine: 'Amoxicilina 500mg', date: '2025-10-15', status: 'Completado' },
-  ];
+    init();
+  }, []);
+
+  // Cargar datos cuando cambia el usuario
+  useEffect(() => {
+    if (currentUser) {
+      loadUserData();
+    }
+  }, [currentUser]);
+
+  // Cargar datos del usuario
+  const loadUserData = () => {
+    try {
+      // Cargar farmacias
+      const pharmaciesData = getAllPharmacies();
+      setPharmacies(pharmaciesData);
+
+      // Cargar recetas del usuario
+      if (currentUser?.id) {
+        const prescriptionsData = getUserPrescriptions(currentUser.id);
+        setPrescriptions(prescriptionsData);
+      }
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+    }
+  };
 
   // Función de Login
   const handleLogin = (email: string, password: string) => {
@@ -48,24 +93,23 @@ export default function App() {
       return;
     }
 
-    // Verificar si es admin
-    if (email === 'admin@medify.com' && password === 'admin123') {
-      setCurrentUser({ email, password, name: 'Administrador' });
-      setUserType('admin');
-      setCurrentScreen('admin-dashboard');
-      return;
-    }
+    try {
+      const user = dbLoginUser(email, password);
+      
+      if (user) {
+        setCurrentUser(user);
 
-    // Buscar usuario en la base de datos
-    const user = users.find(u => u.email === email && u.password === password);
+        // Navegar según el rol
+        if (user.role === 'admin') {
+          setCurrentScreen('admin-dashboard');
+        } else {
+          setCurrentScreen('dashboard');
+        }
 
-    if (user) {
-      setCurrentUser(user);
-      setUserType('patient');
-      setCurrentScreen('dashboard');
-      Alert.alert('¡Bienvenido!', `Hola ${user.name}`);
-    } else {
-      Alert.alert('Error', 'Email o contraseña incorrectos');
+        Alert.alert('¡Bienvenido!', `Hola ${user.name}`);
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Email o contraseña incorrectos');
     }
   };
 
@@ -88,32 +132,67 @@ export default function App() {
       return;
     }
 
-    if (password.length < 8) {
-      Alert.alert('Error', 'La contraseña debe tener al menos 8 caracteres');
+    try {
+      const newUser = dbRegisterUser(email, password, name, phone);
+
+      if (newUser) {
+        Alert.alert(
+          '¡Registro Exitoso!',
+          'Tu cuenta ha sido creada. Ya puedes iniciar sesión.',
+          [{ text: 'OK', onPress: () => setCurrentScreen('onboarding') }]
+        );
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'No se pudo crear la cuenta');
+    }
+  };
+
+  // Recuperar contraseña
+  const handleResetPassword = (email: string) => {
+    if (!email) {
+      Alert.alert('Error', 'Por favor ingresa tu email');
       return;
     }
 
-    // Verificar si el email ya existe
-    if (users.find(u => u.email === email)) {
-      Alert.alert('Error', 'Este email ya está registrado');
+    try {
+      dbResetPassword(email);
+      Alert.alert(
+        'Contraseña Temporal',
+        'Tu nueva contraseña temporal es: temporal123\n\nCámbiala después de iniciar sesión.',
+        [{ text: 'OK', onPress: () => setCurrentScreen('onboarding') }]
+      );
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Usuario no encontrado');
+    }
+  };
+
+  // NUEVA FUNCIÓN: Actualizar perfil
+  const handleUpdateProfile = (name: string, phone: string) => {
+    if (!currentUser?.id) {
+      Alert.alert('Error', 'No hay usuario logueado');
       return;
     }
 
-    // Crear nuevo usuario
-    const newUser: User = {
-      email,
-      password,
-      name,
-      phone,
-    };
+    try {
+      const success = dbUpdateUser(currentUser.id, name, phone);
 
-    setUsers([...users, newUser]);
+      if (success) {
+        // Actualizar el estado del usuario actual
+        setCurrentUser({
+          ...currentUser,
+          name: name,
+          phone: phone
+        });
 
-    Alert.alert(
-      '¡Registro Exitoso!',
-      'Tu cuenta ha sido creada. Ya puedes iniciar sesión.',
-      [{ text: 'OK', onPress: () => setCurrentScreen('onboarding') }]
-    );
+        Alert.alert(
+          '¡Perfil Actualizado!',
+          'Tus cambios se guardaron correctamente',
+          [{ text: 'OK', onPress: () => setCurrentScreen('profile') }]
+        );
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'No se pudo actualizar el perfil');
+    }
   };
 
   // Función para tomar foto
@@ -160,26 +239,40 @@ export default function App() {
   // Función de Logout
   const handleLogout = () => {
     setCurrentUser(null);
-    setUserType('patient');
     setUploadedImage(null);
+    setPrescriptions([]);
     setCurrentScreen('onboarding');
   };
+
+  // Pantalla de carga
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' }}>
+        <Text style={{ fontSize: 18, color: '#4A90E2' }}>Inicializando...</Text>
+      </View>
+    );
+  }
 
   // Renderizar pantalla actual
   const renderScreen = () => {
     switch (currentScreen) {
       case 'onboarding':
         return <PantallaInicioSesion onNavigate={setCurrentScreen} onLogin={handleLogin} />;
-      
+
       case 'register':
         return <PantallaRegistro onNavigate={setCurrentScreen} onRegister={handleRegister} />;
-      
+
       case 'forgot-password':
-        return <PantallaRecuperarClave onNavigate={setCurrentScreen} />;
-      
+        return (
+          <PantallaRecuperarClave
+            onNavigate={setCurrentScreen}
+            onResetPassword={handleResetPassword}
+          />
+        );
+
       case 'dashboard':
         return <PantallaDashboard currentUser={currentUser} onNavigate={setCurrentScreen} />;
-      
+
       case 'upload':
         return (
           <PantallaCargarReceta
@@ -190,40 +283,49 @@ export default function App() {
             onClearImage={() => setUploadedImage(null)}
           />
         );
-      
+
       case 'pharmacies':
         return <PantallaFarmacias pharmacies={pharmacies} onNavigate={setCurrentScreen} />;
-      
+
       case 'pharmacy-detail':
         return <PantallaDetalleFarmacia onNavigate={setCurrentScreen} />;
-      
+
       case 'confirmation':
         return <PantallaConfirmacion onNavigate={setCurrentScreen} />;
-      
+
       case 'history':
         return <PantallaHistorial prescriptions={prescriptions} onNavigate={setCurrentScreen} />;
-      
+
       case 'profile':
         return <PantallaPerfil currentUser={currentUser} onNavigate={setCurrentScreen} />;
-      
+
+      case 'edit-profile':
+        return (
+          <PantallaEditarPerfil 
+            currentUser={currentUser}
+            onNavigate={setCurrentScreen}
+            onUpdateProfile={handleUpdateProfile}
+          />
+        );
+
       case 'logout-confirm':
         return (
           <PantallaCerrarSesion
-            userType={userType}
+            userType={currentUser?.role || 'patient'}
             onNavigate={setCurrentScreen}
             onLogout={handleLogout}
           />
         );
-      
+
       case 'admin-dashboard':
         return <PantallaAdminDashboard onNavigate={setCurrentScreen} />;
-      
+
       case 'admin-pharmacies':
         return <PantallaAdminFarmacias pharmacies={pharmacies} onNavigate={setCurrentScreen} />;
-      
+
       case 'admin-pharmacy-form':
         return <PantallaAdminFormularioFarmacia onNavigate={setCurrentScreen} />;
-      
+
       default:
         return <PantallaInicioSesion onNavigate={setCurrentScreen} onLogin={handleLogin} />;
     }

@@ -1,7 +1,3 @@
-// ============================================
-// app/tipos/usuario.ts - ACTUALIZADO PARA SQLITE
-// ============================================
-
 export interface User {
   id: number;  // SQLite usa INTEGER PRIMARY KEY
   email: string;

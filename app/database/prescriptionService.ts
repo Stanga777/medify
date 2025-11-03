@@ -1,3 +1,6 @@
+// ============================================
+// app/database/prescriptionService.ts
+// ============================================
 import db from './database';
 import { Prescription } from '../tipos/usuario';
 

@@ -1,3 +1,6 @@
+// ============================================
+// app/database/userService.ts
+// ============================================
 import db from './database';
 import { User } from '../tipos/usuario';
 

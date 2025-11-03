@@ -1,3 +1,6 @@
+// ============================================
+// app/database/pharmacyService.ts
+// ============================================
 import db from './database';
 import { Pharmacy } from '../tipos/usuario';
 
@@ -6,18 +9,11 @@ export const getAllPharmacies = (): Pharmacy[] => {
   try {
     const pharmacies = db.getAllSync(
       'SELECT * FROM pharmacies ORDER BY name'
-    ) as any[];
+    ) as Pharmacy[];
 
     return pharmacies.map(p => ({
-      id: p.id,
-      name: p.name,
-      address: p.address,
-      distance: p.distance,
-      phone: p.phone,
-      schedule: p.schedule,
-      accepts: p.accepts_insurance === 1,
-      accepts_insurance: p.accepts_insurance,
-      created_at: p.created_at
+      ...p,
+      accepts: p.accepts_insurance === 1
     }));
   } catch (error) {
     console.error('Error al obtener farmacias:', error);
