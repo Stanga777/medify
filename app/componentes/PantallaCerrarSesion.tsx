@@ -1,3 +1,6 @@
+// ============================================
+// componentes/PantallaCerrarSesion.tsx
+// ============================================
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { styles } from '../estilos/estilos';
@@ -16,7 +19,7 @@ export const PantallaCerrarSesion: React.FC<PantallaCerrarSesionProps> = ({ user
 
       <View style={styles.logoutModalButtons}>
         <TouchableOpacity
-          onPress={() => onNavigate(userType === 'admin' ? 'admin-dashboard' : 'profile')}
+          onPress={() => onNavigate(userType === 'admin' ? 'admin-dashboard' : (userType === 'pharmacy' ? 'pharmacy-dashboard' : 'profile'))}
           style={styles.logoutCancelButton}
         >
           <Text style={styles.logoutCancelText}>Cancelar</Text>
@@ -29,5 +32,3 @@ export const PantallaCerrarSesion: React.FC<PantallaCerrarSesionProps> = ({ user
     </View>
   </View>
 );
-
-export default PantallaCerrarSesion;

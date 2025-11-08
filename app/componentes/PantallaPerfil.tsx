@@ -1,5 +1,5 @@
 // ============================================
-// componentes/PantallaPerfil.tsx - ACTUALIZADO
+// componentes/PantallaPerfil.tsx
 // ============================================
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
@@ -25,22 +25,11 @@ export const PantallaPerfil: React.FC<PantallaPerfilProps> = ({ currentUser, onN
         </View>
         <Text style={styles.profileName}>{currentUser?.name || 'Usuario'}</Text>
         <Text style={styles.profileEmail}>{currentUser?.email}</Text>
-        {currentUser?.phone && (
-          <Text style={styles.profilePhone}>📞 {currentUser.phone}</Text>
-        )}
       </View>
       
       <View style={styles.menuCard}>
-        <TouchableOpacity 
-          style={styles.menuItem}
-          onPress={() => onNavigate('edit-profile')}
-        >
-          <Text style={styles.menuItemText}>✏️ Editar Información Personal</Text>
-          <Text style={styles.menuItemArrow}>›</Text>
-        </TouchableOpacity>
-        
         <TouchableOpacity style={styles.menuItem}>
-          <Text style={styles.menuItemText}>🔒 Cambiar Contraseña</Text>
+          <Text style={styles.menuItemText}>👤 Editar Información Personal</Text>
           <Text style={styles.menuItemArrow}>›</Text>
         </TouchableOpacity>
         

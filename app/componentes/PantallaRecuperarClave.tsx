@@ -1,67 +1,87 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { styles } from '../estilos/estilos';
+import React, { useState, Dispatch, SetStateAction } from 'react';
+import { View, Text, TextInput, Button, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 
-interface PantallaRecuperarClaveProps {
-  onNavigate: (screen: string) => void;
-  onResetPassword: (email: string) => void;   // ✅ AGREGADA
+export interface PantallaRecuperarClaveProps {
+  onNavigate: Dispatch<SetStateAction<string>>;
+  onResetPassword: (email: string) => Promise<void>;
 }
 
-export const PantallaRecuperarClave: React.FC<PantallaRecuperarClaveProps> = ({
-  onNavigate,
-  onResetPassword
-}) => {
+export const PantallaRecuperarClave: React.FC<PantallaRecuperarClaveProps> = ({ onNavigate, onResetPassword }) => {
   const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!email.trim()) {
+      Alert.alert('Error', 'Por favor ingresa tu email');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await onResetPassword(email.trim());
+      Alert.alert('Enviado', 'Revisa tu correo para restablecer tu contraseña', [
+        { text: 'OK', onPress: () => onNavigate('onboarding') },
+      ]);
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'No se pudo enviar el email');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="dark" />
+    <View style={styles.container}>
+      <Text style={styles.title}>Recuperar contraseña</Text>
 
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => onNavigate('onboarding')}>
-          <Text style={styles.backButton}>← Atrás</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Recuperar Contraseña</Text>
-      </View>
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        value={email}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        onChangeText={setEmail}
+      />
 
-      <View style={styles.centerContainer}>
-        <View style={styles.forgotPasswordIcon}>
-          <Text style={styles.forgotPasswordIconText}>🔒</Text>
-        </View>
-
-        <Text style={styles.title}>¿Olvidaste tu contraseña?</Text>
-        <Text style={styles.forgotPasswordSubtitle}>
-          Ingresá tu email y te enviaremos una contraseña temporal
-        </Text>
-
-        <View style={styles.formContainer}>
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Email</Text>
-
-            <TextInput
-              placeholder="tu@email.com"
-              style={styles.input}
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}    // ✅ GUARDAR INPUT
-            />
+      {loading ? (
+        <ActivityIndicator style={{ marginVertical: 12 }} />
+      ) : (
+        <>
+          <View style={styles.button}>
+            <Button title="Enviar correo" onPress={handleSubmit} />
           </View>
 
-          <TouchableOpacity
-            onPress={() => onResetPassword(email)}   // ✅ USAR LA FUNCIÓN REAL
-            style={styles.primaryButton}
-          >
-            <Text style={styles.primaryButtonText}>Enviar Código</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => onNavigate('onboarding')} style={{ marginTop: 16 }}>
-            <Text style={[styles.link, { textAlign: 'center' }]}>
-              Volver al inicio de sesión
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </SafeAreaView>
+          <View style={styles.button}>
+            <Button title="Volver" onPress={() => onNavigate('onboarding')} color="#6B7280" />
+          </View>
+        </>
+      )}
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 24,
+    justifyContent: 'center',
+    backgroundColor: '#F9FAFB',
+  },
+  title: {
+    fontSize: 22,
+    marginBottom: 16,
+    textAlign: 'center',
+    color: '#111827',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 6,
+    marginBottom: 12,
+  },
+  button: {
+    marginTop: 8,
+  },
+});

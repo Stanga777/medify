@@ -1,3 +1,6 @@
+// ============================================
+// componentes/PantallaHistorial.tsx
+// ============================================
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { styles } from '../estilos/estilos';

@@ -1,3 +1,6 @@
+// ============================================
+// componentes/PantallaInicioSesion.tsx
+// ============================================
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';

@@ -1,24 +1,43 @@
 // ============================================
-// app/index.tsx
+// app/index.tsx - COMPLETO CON FIREBASE
 // ============================================
 import React, { useState, useEffect } from 'react';
-import { Alert, View, Text } from 'react-native';
+import { Alert, View, Text, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from './config/firebaseConfig';
 
-// Importar servicios de SQLite
-import { initDatabase } from './database/database';
+// Servicios de Firebase
 import { 
-  registerUser as dbRegisterUser, 
-  loginUser as dbLoginUser,
-  resetPassword as dbResetPassword,
-  updateUser as dbUpdateUser
-} from './database/userService';
-import { getAllPharmacies } from './database/pharmacyService';
-import { getUserPrescriptions } from './database/prescriptionService';
+  registerUser,
+  loginUser,
+  logoutUser,
+  resetPassword,
+  updateUserProfile,
+  createPharmacyUser,
+  UserData
+} from './services/authService';
 
-import { User, Pharmacy, Prescription } from './tipos/usuario';
+import {
+  getAllPharmacies,
+  addPharmacy,
+  updatePharmacy
+} from './services/pharmacyService';
 
-// Importar componentes
+import {
+  addPrescription,
+  getUserPrescriptions,
+  getPendingPrescriptions,
+  getPharmacyPrescriptions,
+  confirmPrescriptionWithPrice,
+  markPrescriptionDelivered,
+  getPharmacyStats
+} from './services/prescriptionService';
+
+import { Pharmacy, Prescription } from './tipos/usuario';
+
+// Componentes
 import { PantallaInicioSesion } from './componentes/PantallaInicioSesion';
 import { PantallaRegistro } from './componentes/PantallaRegistro';
 import { PantallaDashboard } from './componentes/PantallaDashboard';
@@ -34,32 +53,59 @@ import { PantallaCerrarSesion } from './componentes/PantallaCerrarSesion';
 import { PantallaAdminDashboard } from './componentes/PantallaAdminDashboard';
 import { PantallaAdminFarmacias } from './componentes/PantallaAdminFarmacias';
 import { PantallaAdminFormularioFarmacia } from './componentes/PantallaAdminFormularioFarmacia';
+import { PantallaAdminUsuariosFarmacia } from './componentes/PantallaAdminUsuariosFarmacia';
+import { PantallaAdminCrearUsuarioFarmacia } from './componentes/PantallaAdminCrearUsuarioFarmacia';
+import { PantallaFarmaciaDashboard } from './componentes/PantallaFarmaciaDashboard';
+import { PantallaFarmaciaRecetasPendientes } from './componentes/PantallaFarmaciaRecetasPendientes';
+import { PantallaFarmaciaDetalleReceta } from './componentes/PantallaFarmaciaDetalleReceta';
+import { PantallaFarmaciaConfirmadas } from './componentes/PantallaFarmaciaConfirmadas';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState('onboarding');
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserData | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Estados para datos
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
 
-  // Inicializar base de datos al montar la app
+  // Escuchar cambios de autenticación (Firebase)
   useEffect(() => {
-    const init = async () => {
-      try {
-        initDatabase();
-        console.log('✅ Base de datos lista');
-      } catch (error) {
-        console.error('❌ Error al inicializar BD:', error);
-        Alert.alert('Error', 'No se pudo inicializar la base de datos');
-      } finally {
-        setLoading(false);
-      }
-    };
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true);
+      
+      if (firebaseUser) {
+        try {
+          // Obtener datos del usuario desde Firestore
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as UserData;
+            setCurrentUser(userData);
 
-    init();
+            // Navegar según rol
+            if (userData.role === 'admin') {
+              setCurrentScreen('admin-dashboard');
+            } else if (userData.role === 'pharmacy') {
+              setCurrentScreen('pharmacy-dashboard');
+            } else {
+              setCurrentScreen('dashboard');
+            }
+          }
+        } catch (error) {
+          console.error('Error al cargar usuario:', error);
+        }
+      } else {
+        setCurrentUser(null);
+        setCurrentScreen('onboarding');
+      }
+      
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Cargar datos cuando cambia el usuario
@@ -70,15 +116,18 @@ export default function App() {
   }, [currentUser]);
 
   // Cargar datos del usuario
-  const loadUserData = () => {
+  const loadUserData = async () => {
     try {
       // Cargar farmacias
-      const pharmaciesData = getAllPharmacies();
+      const pharmaciesData = await getAllPharmacies();
       setPharmacies(pharmaciesData);
 
-      // Cargar recetas del usuario
-      if (currentUser?.id) {
-        const prescriptionsData = getUserPrescriptions(currentUser.id);
+      // Cargar recetas según el rol
+      if (currentUser?.role === 'patient' && currentUser?.uid) {
+        const prescriptionsData = await getUserPrescriptions(currentUser.uid);
+        setPrescriptions(prescriptionsData);
+      } else if (currentUser?.role === 'pharmacy' && currentUser?.pharmacy_id) {
+        const prescriptionsData = await getPharmacyPrescriptions(currentUser.pharmacy_id);
         setPrescriptions(prescriptionsData);
       }
     } catch (error) {
@@ -86,42 +135,29 @@ export default function App() {
     }
   };
 
-  // Función de Login
-  const handleLogin = (email: string, password: string) => {
+  // Login con Firebase
+  const handleLogin = async (email: string, password: string) => {
     if (!email || !password) {
       Alert.alert('Error', 'Por favor completa todos los campos');
       return;
     }
 
     try {
-      const user = dbLoginUser(email, password);
-      
-      if (user) {
-        setCurrentUser(user);
-
-        // Navegar según el rol
-        if (user.role === 'admin') {
-          setCurrentScreen('admin-dashboard');
-        } else {
-          setCurrentScreen('dashboard');
-        }
-
-        Alert.alert('¡Bienvenido!', `Hola ${user.name}`);
-      }
+      await loginUser(email, password);
+      // onAuthStateChanged se encarga del resto
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Email o contraseña incorrectos');
+      Alert.alert('Error', error.message);
     }
   };
 
-  // Función de Registro
-  const handleRegister = (
+  // Registro con Firebase
+  const handleRegister = async (
     name: string,
     email: string,
     phone: string,
     password: string,
     confirmPassword: string
   ) => {
-    // Validaciones
     if (!name || !email || !password || !confirmPassword) {
       Alert.alert('Error', 'Por favor completa todos los campos obligatorios');
       return;
@@ -133,74 +169,69 @@ export default function App() {
     }
 
     try {
-      const newUser = dbRegisterUser(email, password, name, phone);
-
-      if (newUser) {
-        Alert.alert(
-          '¡Registro Exitoso!',
-          'Tu cuenta ha sido creada. Ya puedes iniciar sesión.',
-          [{ text: 'OK', onPress: () => setCurrentScreen('onboarding') }]
-        );
-      }
+      await registerUser(email, password, name, phone);
+      Alert.alert(
+        '¡Registro Exitoso!',
+        'Tu cuenta ha sido creada. Ya puedes iniciar sesión.',
+        [{ text: 'OK', onPress: () => setCurrentScreen('onboarding') }]
+      );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'No se pudo crear la cuenta');
+      Alert.alert('Error', error.message);
     }
   };
 
   // Recuperar contraseña
-  const handleResetPassword = (email: string) => {
+  const handleResetPassword = async (email: string) => {
     if (!email) {
       Alert.alert('Error', 'Por favor ingresa tu email');
       return;
     }
 
     try {
-      dbResetPassword(email);
+      await resetPassword(email);
       Alert.alert(
-        'Contraseña Temporal',
-        'Tu nueva contraseña temporal es: temporal123\n\nCámbiala después de iniciar sesión.',
+        'Email Enviado',
+        'Revisa tu correo para restablecer tu contraseña',
         [{ text: 'OK', onPress: () => setCurrentScreen('onboarding') }]
       );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Usuario no encontrado');
+      Alert.alert('Error', error.message);
     }
   };
 
-  // NUEVA FUNCIÓN: Actualizar perfil
-  const handleUpdateProfile = (name: string, phone: string) => {
-    if (!currentUser?.id) {
+  // Actualizar perfil
+  const handleUpdateProfile = async (name: string, phone: string) => {
+    if (!currentUser?.uid) {
       Alert.alert('Error', 'No hay usuario logueado');
       return;
     }
 
     try {
-      const success = dbUpdateUser(currentUser.id, name, phone);
+      await updateUserProfile(currentUser.uid, name, phone);
+      
+      // Actualizar estado local
+      setCurrentUser({
+        ...currentUser,
+        name,
+        phone
+      });
 
-      if (success) {
-        // Actualizar el estado del usuario actual
-        setCurrentUser({
-          ...currentUser,
-          name: name,
-          phone: phone
-        });
-
-        Alert.alert(
-          '¡Perfil Actualizado!',
-          'Tus cambios se guardaron correctamente',
-          [{ text: 'OK', onPress: () => setCurrentScreen('profile') }]
-        );
-      }
+      Alert.alert(
+        '¡Perfil Actualizado!',
+        'Tus cambios se guardaron correctamente',
+        [{ text: 'OK', onPress: () => setCurrentScreen('profile') }]
+      );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'No se pudo actualizar el perfil');
+      Alert.alert('Error', error.message);
     }
   };
 
-  // Función para tomar foto
+  // Tomar foto
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
 
     if (status !== 'granted') {
-      Alert.alert('Permiso Denegado', 'Necesitamos acceso a tu cámara para tomar fotos');
+      Alert.alert('Permiso Denegado', 'Necesitamos acceso a tu cámara');
       return;
     }
 
@@ -215,12 +246,12 @@ export default function App() {
     }
   };
 
-  // Función para subir desde galería
+  // Subir desde galería
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (status !== 'granted') {
-      Alert.alert('Permiso Denegado', 'Necesitamos acceso a tu galería para seleccionar fotos');
+      Alert.alert('Permiso Denegado', 'Necesitamos acceso a tu galería');
       return;
     }
 
@@ -236,19 +267,59 @@ export default function App() {
     }
   };
 
-  // Función de Logout
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setUploadedImage(null);
-    setPrescriptions([]);
-    setCurrentScreen('onboarding');
+  // Guardar receta en Firebase
+  const handleSavePrescription = async () => {
+    if (!currentUser?.uid || !uploadedImage) {
+      Alert.alert('Error', 'No hay imagen para guardar');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const prescriptionId = await addPrescription(
+        currentUser.uid,
+        'Medicamento recetado',
+        uploadedImage
+      );
+
+      if (prescriptionId) {
+        Alert.alert(
+          '¡Receta Guardada!',
+          'Tu receta fue enviada a todas las farmacias',
+          [{ 
+            text: 'OK', 
+            onPress: () => {
+              setUploadedImage(null);
+              setCurrentScreen('dashboard');
+              loadUserData();
+            }
+          }]
+        );
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Logout
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      setUploadedImage(null);
+      setPrescriptions([]);
+    } catch (error: any) {
+      Alert.alert('Error', 'No se pudo cerrar sesión');
+    }
   };
 
   // Pantalla de carga
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' }}>
-        <Text style={{ fontSize: 18, color: '#4A90E2' }}>Inicializando...</Text>
+        <ActivityIndicator size="large" color="#4A90E2" />
+        <Text style={{ marginTop: 16, fontSize: 16, color: '#6B7280' }}>Cargando...</Text>
       </View>
     );
   }
@@ -263,12 +334,7 @@ export default function App() {
         return <PantallaRegistro onNavigate={setCurrentScreen} onRegister={handleRegister} />;
 
       case 'forgot-password':
-        return (
-          <PantallaRecuperarClave
-            onNavigate={setCurrentScreen}
-            onResetPassword={handleResetPassword}
-          />
-        );
+        return <PantallaRecuperarClave onNavigate={setCurrentScreen} onResetPassword={handleResetPassword} />;
 
       case 'dashboard':
         return <PantallaDashboard currentUser={currentUser} onNavigate={setCurrentScreen} />;
@@ -281,6 +347,7 @@ export default function App() {
             onTakePhoto={takePhoto}
             onPickImage={pickImage}
             onClearImage={() => setUploadedImage(null)}
+            onSave={handleSavePrescription}
           />
         );
 
@@ -325,6 +392,39 @@ export default function App() {
 
       case 'admin-pharmacy-form':
         return <PantallaAdminFormularioFarmacia onNavigate={setCurrentScreen} />;
+
+      case 'admin-pharmacy-users':
+        return <PantallaAdminUsuariosFarmacia onNavigate={setCurrentScreen} />;
+
+      case 'admin-create-pharmacy-user':
+        return <PantallaAdminCrearUsuarioFarmacia onNavigate={setCurrentScreen} />;
+
+      case 'pharmacy-dashboard':
+        return <PantallaFarmaciaDashboard currentUser={currentUser} onNavigate={setCurrentScreen} />;
+
+      case 'pharmacy-pending':
+        return (
+          <PantallaFarmaciaRecetasPendientes
+            onNavigate={setCurrentScreen}
+            onSelectPrescription={(prescription) => {
+              setSelectedPrescription(prescription);
+              setCurrentScreen('pharmacy-detail-prescription');
+            }}
+          />
+        );
+
+      case 'pharmacy-detail-prescription':
+        return (
+          <PantallaFarmaciaDetalleReceta
+            prescription={selectedPrescription}
+            currentUser={currentUser}
+            onNavigate={setCurrentScreen}
+            onConfirmed={loadUserData}
+          />
+        );
+
+      case 'pharmacy-confirmed':
+        return <PantallaFarmaciaConfirmadas currentUser={currentUser} onNavigate={setCurrentScreen} />;
 
       default:
         return <PantallaInicioSesion onNavigate={setCurrentScreen} onLogin={handleLogin} />;

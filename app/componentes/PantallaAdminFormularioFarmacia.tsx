@@ -1,3 +1,6 @@
+// ============================================
+// componentes/PantallaAdminFormularioFarmacia.tsx
+// ============================================
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Alert } from 'react-native';
 import { styles } from '../estilos/estilos';

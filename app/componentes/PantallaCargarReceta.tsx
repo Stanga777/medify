@@ -1,3 +1,6 @@
+// ============================================
+// componentes/PantallaCargarReceta.tsx - CON FIREBASE
+// ============================================
 import React from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, Image } from 'react-native';
 import { styles } from '../estilos/estilos';
@@ -8,6 +11,7 @@ interface PantallaCargarRecetaProps {
   onTakePhoto: () => void;
   onPickImage: () => void;
   onClearImage: () => void;
+  onSave: () => void;  // ← NUEVO: Para guardar en Firebase
 }
 
 export const PantallaCargarReceta: React.FC<PantallaCargarRecetaProps> = ({
@@ -15,7 +19,8 @@ export const PantallaCargarReceta: React.FC<PantallaCargarRecetaProps> = ({
   onNavigate,
   onTakePhoto,
   onPickImage,
-  onClearImage
+  onClearImage,
+  onSave
 }) => (
   <SafeAreaView style={styles.container}>
     <View style={styles.headerBar}>
@@ -49,8 +54,8 @@ export const PantallaCargarReceta: React.FC<PantallaCargarRecetaProps> = ({
             resizeMode="contain"
           />
           
-          <TouchableOpacity onPress={() => onNavigate('pharmacies')} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>✓ Usar esta foto</Text>
+          <TouchableOpacity onPress={onSave} style={styles.primaryButton}>
+            <Text style={styles.primaryButtonText}>✓ Guardar y Enviar a Farmacias</Text>
           </TouchableOpacity>
           
           <TouchableOpacity onPress={onClearImage} style={[styles.secondaryButton, { marginTop: 16 }]}>

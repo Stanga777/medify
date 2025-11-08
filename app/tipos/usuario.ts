@@ -1,34 +1,50 @@
+// ============================================
+// app/tipos/usuario.ts - FIREBASE VERSION
+// ============================================
+
 export interface User {
-  id: number;  // SQLite usa INTEGER PRIMARY KEY
+  uid: string;  // ← STRING (Firebase usa UIDs)
   email: string;
   name: string;
   phone?: string;
-  role: 'patient' | 'admin';
-  password?: string;  // Solo se usa internamente, no se expone
-  created_at?: string;
+  role: 'patient' | 'admin' | 'pharmacy';
+  pharmacy_id?: string;  // ← STRING
+  createdAt?: Date;
 }
 
 export interface Pharmacy {
-  id: number;
+  id: string;  // ← STRING
   name: string;
   address: string;
   distance: string;
   phone?: string;
   schedule?: string;
   accepts: boolean;
-  accepts_insurance: number;  // SQLite usa 0/1 para boolean (REQUERIDO para conversión)
-  created_at?: string;
+  createdAt?: Date;
 }
 
 export interface Prescription {
-  id: number;
-  user_id: number;
+  id: string;  // ← STRING
+  user_id: string;  // ← STRING
   medicine: string;
-  pharmacy_id?: number;
-  pharmacy_name?: string;  // Viene del JOIN
+  pharmacy_id?: string;  // ← STRING
+  pharmacy_name?: string;
   image_uri?: string;
-  status: string;  // 'pending', 'completed', 'cancelled'
+  status: string;  // 'pending', 'confirmed', 'delivered'
   date: string;
-  created_at?: string;
-  user_name?: string;  // Solo para admin
+  pharmacy_confirmed: boolean;  // ← BOOLEAN (no number)
+  confirmation_message?: string;
+  confirmed_at?: Date;
+  price: number;
+  payment_status: string;  // 'pending', 'paid', 'failed'
+  payment_id?: string;
+  payment_method?: string;
+  createdAt?: Date;
+  user_name?: string;
+  user_phone?: string;
+}
+
+export interface UserLocation {
+  latitude: number;
+  longitude: number;
 }

@@ -1,5 +1,5 @@
 // ============================================
-// app/database/prescriptionService.ts
+// app/database/prescriptionService.ts - ACTUALIZADO
 // ============================================
 import db from './database';
 import { Prescription } from '../tipos/usuario';
@@ -15,7 +15,6 @@ export const getUserPrescriptions = (userId: number): Prescription[] => {
        ORDER BY p.created_at DESC`,
       [userId]
     ) as Prescription[];
-
     return prescriptions;
   } catch (error) {
     console.error('Error al obtener recetas:', error);
@@ -23,19 +22,53 @@ export const getUserPrescriptions = (userId: number): Prescription[] => {
   }
 };
 
-// Agregar nueva receta
+// NUEVO: Obtener recetas pendientes (sin farmacia asignada)
+export const getPendingPrescriptions = (): Prescription[] => {
+  try {
+    const prescriptions = db.getAllSync(
+      `SELECT p.*, u.name as user_name, u.phone as user_phone
+       FROM prescriptions p
+       INNER JOIN users u ON p.user_id = u.id
+       WHERE p.pharmacy_id IS NULL AND p.status = 'pending'
+       ORDER BY p.created_at DESC`
+    ) as Prescription[];
+    return prescriptions;
+  } catch (error) {
+    console.error('Error al obtener recetas pendientes:', error);
+    return [];
+  }
+};
+
+// NUEVO: Obtener recetas de una farmacia específica
+export const getPharmacyPrescriptions = (pharmacyId: number): Prescription[] => {
+  try {
+    const prescriptions = db.getAllSync(
+      `SELECT p.*, u.name as user_name, u.phone as user_phone
+       FROM prescriptions p
+       INNER JOIN users u ON p.user_id = u.id
+       WHERE p.pharmacy_id = ?
+       ORDER BY p.created_at DESC`,
+      [pharmacyId]
+    ) as Prescription[];
+    return prescriptions;
+  } catch (error) {
+    console.error('Error al obtener recetas de farmacia:', error);
+    return [];
+  }
+};
+
+// Agregar receta (sin farmacia específica - va a todas)
 export const addPrescription = (
   userId: number,
   medicine: string,
-  imageUri?: string,
-  pharmacyId?: number
+  imageUri?: string
 ): Prescription | null => {
   try {
     const date = new Date().toISOString().split('T')[0];
     
     const result = db.runSync(
-      'INSERT INTO prescriptions (user_id, medicine, image_uri, pharmacy_id, date, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [userId, medicine, imageUri || '', pharmacyId || null, date, 'pending']
+      'INSERT INTO prescriptions (user_id, medicine, image_uri, date, status) VALUES (?, ?, ?, ?, ?)',
+      [userId, medicine, imageUri || '', date, 'pending']
     );
 
     const newPrescription = db.getFirstSync(
@@ -47,6 +80,46 @@ export const addPrescription = (
   } catch (error) {
     console.error('Error al agregar receta:', error);
     return null;
+  }
+};
+
+// NUEVO: Farmacia confirma que tiene la receta
+export const confirmPrescription = (
+  prescriptionId: number,
+  pharmacyId: number,
+  message?: string
+): boolean => {
+  try {
+    const confirmedAt = new Date().toISOString();
+    
+    db.runSync(
+      `UPDATE prescriptions 
+       SET pharmacy_id = ?, 
+           pharmacy_confirmed = 1, 
+           status = 'confirmed',
+           confirmation_message = ?,
+           confirmed_at = ?
+       WHERE id = ?`,
+      [pharmacyId, message || 'Receta disponible para retiro', confirmedAt, prescriptionId]
+    );
+    return true;
+  } catch (error) {
+    console.error('Error al confirmar receta:', error);
+    return false;
+  }
+};
+
+// NUEVO: Marcar receta como entregada
+export const markPrescriptionDelivered = (prescriptionId: number): boolean => {
+  try {
+    db.runSync(
+      'UPDATE prescriptions SET status = ? WHERE id = ?',
+      ['delivered', prescriptionId]
+    );
+    return true;
+  } catch (error) {
+    console.error('Error al marcar como entregada:', error);
+    return false;
   }
 };
 
@@ -67,32 +140,6 @@ export const updatePrescriptionStatus = (
   }
 };
 
-// Actualizar receta completa
-export const updatePrescription = (
-  prescriptionId: number,
-  medicine: string,
-  pharmacyId?: number,
-  status?: string
-): boolean => {
-  try {
-    if (status) {
-      db.runSync(
-        'UPDATE prescriptions SET medicine = ?, pharmacy_id = ?, status = ? WHERE id = ?',
-        [medicine, pharmacyId || null, status, prescriptionId]
-      );
-    } else {
-      db.runSync(
-        'UPDATE prescriptions SET medicine = ?, pharmacy_id = ? WHERE id = ?',
-        [medicine, pharmacyId || null, prescriptionId]
-      );
-    }
-    return true;
-  } catch (error) {
-    console.error('Error al actualizar receta:', error);
-    return false;
-  }
-};
-
 // Eliminar receta
 export const deletePrescription = (prescriptionId: number): boolean => {
   try {
@@ -104,7 +151,7 @@ export const deletePrescription = (prescriptionId: number): boolean => {
   }
 };
 
-// Obtener todas las recetas (solo admin)
+// Obtener todas las recetas (admin)
 export const getAllPrescriptions = (): Prescription[] => {
   try {
     const prescriptions = db.getAllSync(
@@ -114,7 +161,6 @@ export const getAllPrescriptions = (): Prescription[] => {
        LEFT JOIN pharmacies ph ON p.pharmacy_id = ph.id
        ORDER BY p.created_at DESC`
     ) as Prescription[];
-
     return prescriptions;
   } catch (error) {
     console.error('Error al obtener todas las recetas:', error);
@@ -122,60 +168,35 @@ export const getAllPrescriptions = (): Prescription[] => {
   }
 };
 
-// Obtener recetas por farmacia
-export const getPrescriptionsByPharmacy = (pharmacyId: number): Prescription[] => {
+// NUEVO: Estadísticas para farmacia
+export const getPharmacyStats = (pharmacyId: number) => {
   try {
-    const prescriptions = db.getAllSync(
-      `SELECT p.*, u.name as user_name
-       FROM prescriptions p
-       INNER JOIN users u ON p.user_id = u.id
-       WHERE p.pharmacy_id = ?
-       ORDER BY p.created_at DESC`,
-      [pharmacyId]
-    ) as Prescription[];
-
-    return prescriptions;
-  } catch (error) {
-    console.error('Error al obtener recetas por farmacia:', error);
-    return [];
-  }
-};
-
-// Obtener estadísticas de recetas (para dashboard admin)
-export const getPrescriptionStats = () => {
-  try {
-    const totalPrescriptions = db.getFirstSync(
-      'SELECT COUNT(*) as count FROM prescriptions'
-    ) as any;
-
-    const pendingPrescriptions = db.getFirstSync(
-      'SELECT COUNT(*) as count FROM prescriptions WHERE status = ?',
+    const pendingGlobal = db.getFirstSync(
+      'SELECT COUNT(*) as count FROM prescriptions WHERE pharmacy_id IS NULL AND status = ?',
       ['pending']
     ) as any;
 
-    const completedPrescriptions = db.getFirstSync(
-      'SELECT COUNT(*) as count FROM prescriptions WHERE status = ?',
-      ['completed']
+    const confirmedByMe = db.getFirstSync(
+      'SELECT COUNT(*) as count FROM prescriptions WHERE pharmacy_id = ? AND pharmacy_confirmed = 1',
+      [pharmacyId]
     ) as any;
 
-    const todayPrescriptions = db.getFirstSync(
-      'SELECT COUNT(*) as count FROM prescriptions WHERE date = ?',
-      [new Date().toISOString().split('T')[0]]
+    const deliveredByMe = db.getFirstSync(
+      'SELECT COUNT(*) as count FROM prescriptions WHERE pharmacy_id = ? AND status = ?',
+      [pharmacyId, 'delivered']
     ) as any;
 
     return {
-      total: totalPrescriptions.count,
-      pending: pendingPrescriptions.count,
-      completed: completedPrescriptions.count,
-      today: todayPrescriptions.count
+      pendingGlobal: pendingGlobal.count,
+      confirmedByMe: confirmedByMe.count,
+      deliveredByMe: deliveredByMe.count
     };
   } catch (error) {
     console.error('Error al obtener estadísticas:', error);
     return {
-      total: 0,
-      pending: 0,
-      completed: 0,
-      today: 0
+      pendingGlobal: 0,
+      confirmedByMe: 0,
+      deliveredByMe: 0
     };
   }
 };
