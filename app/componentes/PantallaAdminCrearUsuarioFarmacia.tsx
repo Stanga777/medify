@@ -1,12 +1,14 @@
 // ============================================
-// componentes/PantallaAdminCrearUsuarioFarmacia.tsx
+// componentes/PantallaAdminCrearUsuarioFarmacia.tsx - FIREBASE
 // ============================================
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, Alert } from 'react-native';
 import { styles } from '../estilos/estilos';
 import { Pharmacy } from '../tipos/usuario';
-import { getAllPharmacies } from '../database/pharmacyService';
-import { createPharmacyUser } from '../database/userService';
+import { getAllPharmacies } from '../services/pharmacyService';
+import { createPharmacyUser } from '../services/authService';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../config/firebaseConfig';
 
 interface PantallaAdminCrearUsuarioFarmaciaProps {
   onNavigate: (screen: string) => void;
@@ -14,19 +16,39 @@ interface PantallaAdminCrearUsuarioFarmaciaProps {
 
 export const PantallaAdminCrearUsuarioFarmacia: React.FC<PantallaAdminCrearUsuarioFarmaciaProps> = ({ onNavigate }) => {
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
-  const [selectedPharmacyId, setSelectedPharmacyId] = useState<number | null>(null);
+  const [selectedPharmacyId, setSelectedPharmacyId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const data = getAllPharmacies();
-    setPharmacies(data);
+    loadPharmacies();
   }, []);
 
-  const handleCreate = () => {
+  const loadPharmacies = async () => {
+    try {
+      const data = await getAllPharmacies();
+      setPharmacies(data);
+    } catch (error) {
+      console.error('Error al cargar farmacias:', error);
+    }
+  };
+
+  const checkPharmacyHasUser = async (pharmacyId: string): Promise<boolean> => {
+    try {
+      const q = query(collection(db, 'users'), where('pharmacy_id', '==', pharmacyId));
+      const querySnapshot = await getDocs(q);
+      return !querySnapshot.empty;
+    } catch (error) {
+      console.error('Error al verificar usuario:', error);
+      return false;
+    }
+  };
+
+  const handleCreate = async () => {
     // Validaciones
     if (!name || !email || !password || !confirmPassword) {
       Alert.alert('Error', 'Por favor completa todos los campos obligatorios');
@@ -43,23 +65,45 @@ export const PantallaAdminCrearUsuarioFarmacia: React.FC<PantallaAdminCrearUsuar
       return;
     }
 
-    if (password.length < 8) {
-      Alert.alert('Error', 'La contraseña debe tener al menos 8 caracteres');
+    if (password.length < 6) {
+      Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres');
       return;
     }
 
     try {
-      const success = createPharmacyUser(email, password, name, selectedPharmacyId, phone);
+      setLoading(true);
 
-      if (success) {
-        Alert.alert(
-          '¡Usuario Creado!',
-          `Credenciales:\nEmail: ${email}\nContraseña: ${password}\n\nGuarda estas credenciales para entregarlas a la farmacia.`,
-          [{ text: 'OK', onPress: () => onNavigate('admin-pharmacy-users') }]
-        );
+      // Verificar si la farmacia ya tiene usuario
+      const hasUser = await checkPharmacyHasUser(selectedPharmacyId);
+      if (hasUser) {
+        Alert.alert('Error', 'Esta farmacia ya tiene un usuario asignado');
+        setLoading(false);
+        return;
       }
+
+      // Crear usuario de farmacia
+      await createPharmacyUser(email, password, name, selectedPharmacyId, phone);
+
+      Alert.alert(
+        '¡Usuario Creado!',
+        `Credenciales:\nEmail: ${email}\nContraseña: ${password}\n\nGuarda estas credenciales para entregarlas a la farmacia.`,
+        [{ 
+          text: 'OK', 
+          onPress: () => {
+            setName('');
+            setEmail('');
+            setPhone('');
+            setPassword('');
+            setConfirmPassword('');
+            setSelectedPharmacyId(null);
+            onNavigate('admin-pharmacy-users');
+          }
+        }]
+      );
     } catch (error: any) {
       Alert.alert('Error', error.message || 'No se pudo crear el usuario');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -134,7 +178,7 @@ export const PantallaAdminCrearUsuarioFarmacia: React.FC<PantallaAdminCrearUsuar
         <View style={styles.formGroup}>
           <Text style={styles.label}>Contraseña *</Text>
           <TextInput
-            placeholder="Mínimo 8 caracteres"
+            placeholder="Mínimo 6 caracteres"
             style={styles.input}
             secureTextEntry
             value={password}
@@ -165,13 +209,17 @@ export const PantallaAdminCrearUsuarioFarmacia: React.FC<PantallaAdminCrearUsuar
         <TouchableOpacity
           onPress={handleCreate}
           style={styles.primaryButton}
+          disabled={loading}
         >
-          <Text style={styles.primaryButtonText}>Crear Usuario</Text>
+          <Text style={styles.primaryButtonText}>
+            {loading ? 'Creando...' : 'Crear Usuario'}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={() => onNavigate('admin-pharmacy-users')}
           style={[styles.secondaryButton, { marginTop: 12, marginBottom: 40 }]}
+          disabled={loading}
         >
           <Text style={styles.secondaryButtonText}>Cancelar</Text>
         </TouchableOpacity>

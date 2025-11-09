@@ -1,8 +1,12 @@
+// ============================================
+// componentes/PantallaAdminUsuariosFarmacia.tsx - FIREBASE
+// ============================================
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../config/firebaseConfig';
 import { styles } from '../estilos/estilos';
 import { User } from '../tipos/usuario';
-import { getAllUsers } from '../database/userService';
 
 interface PantallaAdminUsuariosFarmaciaProps {
   onNavigate: (screen: string) => void;
@@ -10,11 +14,24 @@ interface PantallaAdminUsuariosFarmaciaProps {
 
 export const PantallaAdminUsuariosFarmacia: React.FC<PantallaAdminUsuariosFarmaciaProps> = ({ onNavigate }) => {
   const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const loadUsers = () => {
-    const allUsers = getAllUsers();
-    const pharmacyUsers = allUsers.filter(u => u.role === 'pharmacy');
-    setUsers(pharmacyUsers);
+  const loadUsers = async () => {
+    try {
+      const q = query(collection(db, 'users'), where('role', '==', 'pharmacy'));
+      const querySnapshot = await getDocs(q);
+      
+      const pharmacyUsers = querySnapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data()
+      } as User));
+      
+      setUsers(pharmacyUsers);
+    } catch (error) {
+      console.error('Error al cargar usuarios:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -38,7 +55,11 @@ export const PantallaAdminUsuariosFarmacia: React.FC<PantallaAdminUsuariosFarmac
           <Text style={styles.primaryButtonText}>➕ Crear Usuario Farmacia</Text>
         </TouchableOpacity>
 
-        {users.length === 0 ? (
+        {loading ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>Cargando...</Text>
+          </View>
+        ) : users.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateIcon}>👥</Text>
             <Text style={styles.emptyStateText}>No hay usuarios de farmacia</Text>

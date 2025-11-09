@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, RefreshControl } from 'react-native';
 import { styles } from '../estilos/estilos';
 import { User } from '../tipos/usuario';
-import { getPharmacyStats } from '../database/prescriptionService';
+import { getPharmacyStats } from '../services/prescriptionService';
 
 interface PantallaFarmaciaDashboardProps {
   currentUser: User | null;
@@ -19,9 +19,9 @@ export const PantallaFarmaciaDashboard: React.FC<PantallaFarmaciaDashboardProps>
   const [stats, setStats] = useState({ pendingGlobal: 0, confirmedByMe: 0, deliveredByMe: 0 });
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadStats = () => {
+  const loadStats = async () => {
     if (currentUser?.pharmacy_id) {
-      const newStats = getPharmacyStats(currentUser.pharmacy_id);
+      const newStats = await getPharmacyStats(currentUser.pharmacy_id);
       setStats(newStats);
     }
   };
@@ -30,10 +30,10 @@ export const PantallaFarmaciaDashboard: React.FC<PantallaFarmaciaDashboardProps>
     loadStats();
   }, [currentUser]);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadStats();
-    setTimeout(() => setRefreshing(false), 500);
+    await loadStats();
+    setRefreshing(false);
   };
 
   return (

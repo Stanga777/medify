@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, RefreshControl, Alert } from 'react-native';
 import { styles } from '../estilos/estilos';
 import { Prescription, User } from '../tipos/usuario';
-import { getPharmacyPrescriptions, markPrescriptionDelivered } from '../database/prescriptionService';
+import { getPharmacyPrescriptions, markPrescriptionDelivered } from '../services/prescriptionService';
 
 interface PantallaFarmaciaConfirmadasProps {
   currentUser: User | null;
@@ -19,9 +19,9 @@ export const PantallaFarmaciaConfirmadas: React.FC<PantallaFarmaciaConfirmadasPr
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadPrescriptions = () => {
+  const loadPrescriptions = async () => {
     if (currentUser?.pharmacy_id) {
-      const data = getPharmacyPrescriptions(currentUser.pharmacy_id);
+      const data = await getPharmacyPrescriptions(currentUser.pharmacy_id);
       const confirmed = data.filter(p => p.status === 'confirmed');
       setPrescriptions(confirmed);
     }
@@ -31,13 +31,13 @@ export const PantallaFarmaciaConfirmadas: React.FC<PantallaFarmaciaConfirmadasPr
     loadPrescriptions();
   }, [currentUser]);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadPrescriptions();
-    setTimeout(() => setRefreshing(false), 500);
+    await loadPrescriptions();
+    setRefreshing(false);
   };
 
-  const handleMarkDelivered = (prescriptionId: number) => {
+  const handleMarkDelivered = (prescriptionId: string) => {
     Alert.alert(
       'Marcar como Entregada',
       '¿El paciente ya retiró esta receta?',
@@ -45,11 +45,13 @@ export const PantallaFarmaciaConfirmadas: React.FC<PantallaFarmaciaConfirmadasPr
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Sí, entregada',
-          onPress: () => {
-            const success = markPrescriptionDelivered(prescriptionId);
+          onPress: async () => {
+            const success = await markPrescriptionDelivered(prescriptionId);
             if (success) {
               Alert.alert('¡Listo!', 'Receta marcada como entregada');
-              loadPrescriptions();
+              await loadPrescriptions();
+            } else {
+              Alert.alert('Error', 'No se pudo marcar como entregada');
             }
           }
         }
