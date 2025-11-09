@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, RefreshControl, Image } from 'react-native';
 import { styles } from '../estilos/estilos';
 import { Prescription } from '../tipos/usuario';
-import { getPendingPrescriptions } from '../database/prescriptionService';
+import { getPendingPrescriptions } from '../services/prescriptionService';
 
 interface PantallaFarmaciaRecetasPendientesProps {
   onNavigate: (screen: string) => void;
@@ -19,8 +19,8 @@ export const PantallaFarmaciaRecetasPendientes: React.FC<PantallaFarmaciaRecetas
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadPrescriptions = () => {
-    const data = getPendingPrescriptions();
+  const loadPrescriptions = async () => {
+    const data = await getPendingPrescriptions();
     setPrescriptions(data);
   };
 
@@ -28,10 +28,10 @@ export const PantallaFarmaciaRecetasPendientes: React.FC<PantallaFarmaciaRecetas
     loadPrescriptions();
   }, []);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadPrescriptions();
-    setTimeout(() => setRefreshing(false), 500);
+    await loadPrescriptions();
+    setRefreshing(false);
   };
 
   return (
