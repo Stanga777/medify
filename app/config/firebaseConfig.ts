@@ -7,7 +7,7 @@ import { getFirestore } from 'firebase/firestore';
 
 // Tu configuración de Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyAr_nRvHsNbWHn3w5euTK07BPAj2XHLNdY",
+  apiKey: "...",
   authDomain: "medify-7212e.firebaseapp.com",
   projectId: "medify-7212e",
   storageBucket: "medify-7212e.firebasestorage.app",
