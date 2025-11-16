@@ -60,6 +60,7 @@ export const addPrescription = async (
       image_uri: imageData, // Base64 en vez de URL
       status: 'pending',
       date: new Date().toISOString().split('T')[0],
+      pharmacy_id: null,
       pharmacy_confirmed: false,
       price: 0,
       payment_status: 'pending',
@@ -98,16 +99,21 @@ export const getPendingPrescriptions = async (): Promise<Prescription[]> => {
   try {
     const q = query(
       collection(db, 'prescriptions'),
-      where('pharmacy_id', '==', null),
       where('status', '==', 'pending'),
       firestoreOrderBy('createdAt', 'desc')
     );
     
     const querySnapshot = await getDocs(q);
     
+    // Filtramos las que NO tienen pharmacy_id asignado
+    const pendingDocs = querySnapshot.docs.filter(doc => {
+      const data = doc.data();
+      return !data.pharmacy_id; // Solo las que no tienen pharmacy_id
+    });
+    
     // Obtener info de usuarios para cada receta
     const prescriptions = await Promise.all(
-      querySnapshot.docs.map(async (docSnap) => {
+      pendingDocs.map(async (docSnap) => {
         const prescriptionData = docSnap.data();
         const userDoc = await getDoc(doc(db, 'users', prescriptionData.user_id));
         const userData = userDoc.data();

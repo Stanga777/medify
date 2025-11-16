@@ -20,9 +20,21 @@ export const PantallaFarmaciaRecetasPendientes: React.FC<PantallaFarmaciaRecetas
   const [refreshing, setRefreshing] = useState(false);
 
   const loadPrescriptions = async () => {
+    console.log('🔵 Cargando recetas pendientes...');
     const data = await getPendingPrescriptions();
-    setPrescriptions(data);
-  };
+    console.log('📋 Recetas obtenidas:', data);
+    console.log('📊 Cantidad de recetas:', data.length);
+  
+    // AGREGAR ESTO:
+    data.forEach(p => {
+      console.log('📸 Receta ID:', p.id);
+      console.log('📸 Tiene image_uri?', !!p.image_uri);
+      console.log('📸 Tipo de image_uri:', typeof p.image_uri);
+      console.log('📸 Primeros 50 chars:', p.image_uri?.substring(0, 50));
+  });
+  
+  setPrescriptions(data);
+};
 
   useEffect(() => {
     loadPrescriptions();
@@ -62,8 +74,10 @@ export const PantallaFarmaciaRecetasPendientes: React.FC<PantallaFarmaciaRecetas
             >
               {prescription.image_uri && (
                 <Image 
-                  source={{ uri: prescription.image_uri }} 
+                  source={{ uri: prescription.image_uri }}
                   style={styles.prescriptionThumbnail}
+                  onError={(error) => console.error('❌ Error cargando imagen:', error.nativeEvent)}
+                  onLoad={() => console.log('✅ Imagen cargada correctamente')}
                 />
               )}
               

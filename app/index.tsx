@@ -53,12 +53,11 @@ import { PantallaCerrarSesion } from './componentes/PantallaCerrarSesion';
 import { PantallaAdminDashboard } from './componentes/PantallaAdminDashboard';
 import { PantallaAdminFarmacias } from './componentes/PantallaAdminFarmacias';
 import { PantallaAdminFormularioFarmacia } from './componentes/PantallaAdminFormularioFarmacia';
-import { PantallaAdminUsuariosFarmacia } from './componentes/PantallaAdminUsuariosFarmacia';
-import { PantallaAdminCrearUsuarioFarmacia } from './componentes/PantallaAdminCrearUsuarioFarmacia';
 import { PantallaFarmaciaDashboard } from './componentes/PantallaFarmaciaDashboard';
 import { PantallaFarmaciaRecetasPendientes } from './componentes/PantallaFarmaciaRecetasPendientes';
 import { PantallaFarmaciaDetalleReceta } from './componentes/PantallaFarmaciaDetalleReceta';
 import { PantallaFarmaciaConfirmadas } from './componentes/PantallaFarmaciaConfirmadas';
+import { PantallaDetalleRecetaPaciente } from './componentes/PantallaDetalleRecetaPaciente';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState('onboarding');
@@ -118,20 +117,28 @@ export default function App() {
   // Cargar datos del usuario
   const loadUserData = async () => {
     try {
+      console.log('🔵 Cargando datos del usuario...');
+      console.log('👤 Usuario actual:', currentUser);
+      
       // Cargar farmacias
       const pharmaciesData = await getAllPharmacies();
       setPharmacies(pharmaciesData);
 
       // Cargar recetas según el rol
       if (currentUser?.role === 'patient' && currentUser?.uid) {
+        console.log('🔵 Cargando recetas del paciente:', currentUser.uid);
         const prescriptionsData = await getUserPrescriptions(currentUser.uid);
+        console.log('📋 Recetas del paciente:', prescriptionsData);
+        console.log('📊 Cantidad:', prescriptionsData.length);
         setPrescriptions(prescriptionsData);
       } else if (currentUser?.role === 'pharmacy' && currentUser?.pharmacy_id) {
+        console.log('🔵 Cargando recetas de la farmacia:', currentUser.pharmacy_id);
         const prescriptionsData = await getPharmacyPrescriptions(currentUser.pharmacy_id);
+        console.log('📋 Recetas de la farmacia:', prescriptionsData);
         setPrescriptions(prescriptionsData);
       }
     } catch (error) {
-      console.error('Error al cargar datos:', error);
+      console.error('❌ Error al cargar datos:', error);
     }
   };
 
@@ -361,7 +368,25 @@ export default function App() {
         return <PantallaConfirmacion onNavigate={setCurrentScreen} />;
 
       case 'history':
-        return <PantallaHistorial prescriptions={prescriptions} onNavigate={setCurrentScreen} />;
+        return (
+          <PantallaHistorial 
+            prescriptions={prescriptions} 
+            onNavigate={setCurrentScreen}
+            onSelectPrescription={(prescription) => {
+              setSelectedPrescription(prescription);
+              setCurrentScreen('patient-prescription-detail');
+            }}
+          />
+        );
+
+      case 'patient-prescription-detail':
+        return (
+          <PantallaDetalleRecetaPaciente
+            prescription={selectedPrescription}
+            onNavigate={setCurrentScreen}
+            onPaymentComplete={loadUserData}
+          />
+        );
 
       case 'profile':
         return <PantallaPerfil currentUser={currentUser} onNavigate={setCurrentScreen} />;
@@ -392,12 +417,6 @@ export default function App() {
 
       case 'admin-pharmacy-form':
         return <PantallaAdminFormularioFarmacia onNavigate={setCurrentScreen} />;
-
-      case 'admin-pharmacy-users':
-        return <PantallaAdminUsuariosFarmacia onNavigate={setCurrentScreen} />;
-
-      case 'admin-create-pharmacy-user':
-        return <PantallaAdminCrearUsuarioFarmacia onNavigate={setCurrentScreen} />;
 
       case 'pharmacy-dashboard':
         return <PantallaFarmaciaDashboard currentUser={currentUser} onNavigate={setCurrentScreen} />;

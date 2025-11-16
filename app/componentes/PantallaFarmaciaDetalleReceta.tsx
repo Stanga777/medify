@@ -29,51 +29,51 @@ export const PantallaFarmaciaDetalleReceta: React.FC<PantallaFarmaciaDetalleRece
   }
 
   const handleConfirm = async () => {
+    console.log('🔵 INICIO handleConfirm');
+  
     if (!currentUser?.pharmacy_id) {
       Alert.alert('Error', 'No se pudo identificar la farmacia');
       return;
     }
 
     const priceNumber = parseFloat(price);
+  
     if (!price || isNaN(priceNumber) || priceNumber <= 0) {
       Alert.alert('Error', 'Por favor ingresa un precio válido');
       return;
     }
 
-    Alert.alert(
-      'Confirmar Receta',
-      `¿Confirmar medicamento disponible por $${priceNumber}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Sí, confirmar',
-          onPress: async () => {
-            setLoading(true);
-            const success = await confirmPrescriptionWithPrice(
-              prescription.id,
-              currentUser.pharmacy_id!,
-              priceNumber,
-              message || 'Receta disponible para retiro'
-            );
+    console.log('✅ Confirmando directamente...');
+    setLoading(true);
+  
+    try {
+      console.log('🔵 Llamando a confirmPrescriptionWithPrice...');
+      const success = await confirmPrescriptionWithPrice(
+        prescription.id,
+        currentUser.pharmacy_id!,
+        priceNumber,
+        message || 'Receta disponible para retiro'
+      );
+    console.log('📊 Resultado:', success);
 
-            setLoading(false);
-
-            if (success) {
-              Alert.alert(
-                '¡Confirmado!',
-                'El paciente recibirá una notificación',
-                [{ text: 'OK', onPress: () => {
-                  onConfirmed();
-                  onNavigate('pharmacy-dashboard');
-                }}]
-              );
-            } else {
-              Alert.alert('Error', 'No se pudo confirmar la receta');
-            }
-          }
-        }
-      ]
-    );
+    if (success) {
+      Alert.alert(
+        '¡Confirmado!',
+        'El paciente recibirá una notificación',
+        [{ text: 'OK', onPress: () => {
+          onConfirmed();
+          onNavigate('pharmacy-dashboard');
+        }}]
+      );
+    } else {
+      Alert.alert('Error', 'No se pudo confirmar la receta');
+    }
+    } catch (error) {
+      console.error('❌ Error:', error);
+      Alert.alert('Error', 'Error al confirmar la receta');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

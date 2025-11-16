@@ -8,7 +8,7 @@ import {
   sendPasswordResetEmail,
   User as FirebaseUser
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../config/firebaseConfig';
 
 export interface UserData {
@@ -21,6 +21,18 @@ export interface UserData {
   createdAt: Date;
 }
 
+// Verificar si un email ya existe
+export const checkEmailExists = async (email: string): Promise<boolean> => {
+  try {
+    const q = query(collection(db, 'users'), where('email', '==', email));
+    const querySnapshot = await getDocs(q);
+    return !querySnapshot.empty; // true si el email ya existe
+  } catch (error) {
+    console.error('Error al verificar email:', error);
+    return false;
+  }
+};
+
 // Registrar nuevo usuario
 export const registerUser = async (
   email: string,
@@ -29,6 +41,12 @@ export const registerUser = async (
   phone?: string
 ): Promise<UserData> => {
   try {
+    // Verificar si el email ya existe en Firestore
+    const emailExists = await checkEmailExists(email);
+    if (emailExists) {
+      throw new Error('Este email ya está registrado');
+    }
+
     // Crear usuario en Authentication
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
@@ -46,6 +64,10 @@ export const registerUser = async (
     await setDoc(doc(db, 'users', user.uid), userData);
     return userData;
   } catch (error: any) {
+    // Si el error es de Firebase Auth (email ya usado)
+    if (error.code === 'auth/email-already-in-use') {
+      throw new Error('Este email ya está registrado');
+    }
     throw new Error(getErrorMessage(error.code));
   }
 };
@@ -117,6 +139,12 @@ export const createPharmacyUser = async (
   phone?: string
 ): Promise<void> => {
   try {
+    // Verificar si el email ya existe
+    const emailExists = await checkEmailExists(email);
+    if (emailExists) {
+      throw new Error('Este email ya está registrado');
+    }
+
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
@@ -132,6 +160,9 @@ export const createPharmacyUser = async (
 
     await setDoc(doc(db, 'users', user.uid), userData);
   } catch (error: any) {
+    if (error.code === 'auth/email-already-in-use') {
+      throw new Error('Este email ya está registrado');
+    }
     throw new Error(getErrorMessage(error.code));
   }
 };
